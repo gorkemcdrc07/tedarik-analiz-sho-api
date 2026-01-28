@@ -2,6 +2,8 @@
 
 const router = Router();
 
+/* ---------------- helpers ---------------- */
+
 function extractItems(payload) {
     if (!payload) return [];
     const root = payload.items ?? payload.data ?? payload;
@@ -15,17 +17,33 @@ function buildAuthHeader() {
     const prefix = (process.env.ODAK_AUTH_PREFIX || "").trim();
 
     if (!token) return null;
-
-    // Authorization: Bearer <token>  (prefix varsa)
     const value = prefix ? `${prefix} ${token}` : token;
     return { headerName, value };
 }
 
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+function toISOStart(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x.toISOString();
+}
+
+function toISOEnd(d) {
+    const x = new Date(d);
+    x.setHours(23, 59, 59, 999);
+    return x.toISOString();
+}
+
+/* ---------------- route ---------------- */
+
 /**
  * POST /prints/search
- * Bu endpoint: Odak API'ye istek atıp sonucu normalize ederek geri döner.
- * Şimdilik Odak'ta verdiğin endpoint:
- *   POST https://api.odaklojistik.com.tr/api/tmsdespatches/getall
+ * Tarih aralığını gün gün bölerek Odak API'ye çağrı atar
  */
 router.post("/search", async (req, res) => {
     try {
@@ -37,52 +55,81 @@ router.post("/search", async (req, res) => {
             return res.status(500).json({ ok: false, message: "ODAK_TOKEN eksik (.env)" });
         }
 
-        // Timeout (15sn)
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 15000);
+        const { startDate, endDate, ...rest } = req.body || {};
+        if (!startDate || !endDate) {
+            return res.status(400).json({ ok: false, message: "startDate / endDate zorunlu" });
+        }
 
         const headers = {
             "Content-Type": "application/json",
-            [auth.headerName]: auth.value
+            [auth.headerName]: auth.value,
         };
 
-        const resp = await fetch(url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(req.body || {}),
-            signal: controller.signal
-        }).finally(() => clearTimeout(t));
+        const start = new Date(startDate);
+        const end = new Date(endDate);
 
-        const text = await resp.text();
-        let payload;
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            payload = { raw: text };
+        let cursor = new Date(start);
+        let allItems = [];
+
+        while (cursor <= end) {
+            const dayStart = toISOStart(cursor);
+            const dayEnd = toISOEnd(cursor);
+
+            const body = {
+                ...rest,
+                startDate: dayStart,
+                endDate: dayEnd,
+            };
+
+            // ⏱️ tek gün = 30sn timeout
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 30000);
+
+            try {
+                const resp = await fetch(url, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(body),
+                    signal: controller.signal,
+                });
+
+                const text = await resp.text();
+                let payload;
+                try {
+                    payload = JSON.parse(text);
+                } catch {
+                    payload = { raw: text };
+                }
+
+                if (!resp.ok) {
+                    console.error("ODAK ERROR", dayStart, payload);
+                    // ❗ tek gün patlarsa tüm süreci öldürmüyoruz
+                    cursor = addDays(cursor, 1);
+                    continue;
+                }
+
+                const items = extractItems(payload);
+                allItems = allItems.concat(items);
+            } catch (err) {
+                console.error("ODAK TIMEOUT", dayStart);
+                // ❗ timeout olsa bile devam
+            } finally {
+                clearTimeout(timer);
+            }
+
+            cursor = addDays(cursor, 1);
         }
-
-        if (!resp.ok) {
-            return res.status(resp.status).json({
-                ok: false,
-                status: resp.status,
-                message: "Odak API error",
-                odak: payload
-            });
-        }
-
-        const items = extractItems(payload);
 
         return res.json({
             ok: true,
-            count: items.length,
-            data: items
+            count: allItems.length,
+            data: allItems,
         });
     } catch (err) {
-        const isAbort = String(err?.name || "").toLowerCase().includes("abort");
         return res.status(500).json({
             ok: false,
-            message: isAbort ? "Odak API timeout" : "Server error",
-            error: String(err?.message || err)
+            message: "Server error",
+            error: String(err?.message || err),
         });
     }
 });
