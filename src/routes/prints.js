@@ -39,6 +39,14 @@ function toISOEnd(d) {
     return x.toISOString();
 }
 
+function pick(obj, keys) {
+    for (const k of keys) {
+        const v = obj?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+    }
+    return null;
+}
+
 /* ---------------- route ---------------- */
 
 /**
@@ -81,7 +89,6 @@ router.post("/search", async (req, res) => {
                 endDate: dayEnd,
             };
 
-            // ⏱️ tek gün = 30sn timeout
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 30000);
 
@@ -103,16 +110,47 @@ router.post("/search", async (req, res) => {
 
                 if (!resp.ok) {
                     console.error("ODAK ERROR", dayStart, payload);
-                    // ❗ tek gün patlarsa tüm süreci öldürmüyoruz
                     cursor = addDays(cursor, 1);
                     continue;
                 }
 
                 const items = extractItems(payload);
-                allItems = allItems.concat(items);
+
+                const normalized = items.map((p) => ({
+                    ...p,
+
+                    // mevcut SHÖ alanları
+                    PrintedDate: pick(p, [
+                        "PrintedDate",
+                        "printedDate",
+                        "PRINTEDDATE",
+                    ]),
+                    PrintedBy: pick(p, [
+                        "PrintedBy",
+                        "printedBy",
+                        "PRINTEDBY",
+                    ]),
+
+                    // yeni istenen alanlar
+                    TMSLoadingDocumentPrintedDate: pick(p, [
+                        "TMSLoadingDocumentPrintedDate",
+                        "tmsLoadingDocumentPrintedDate",
+                        "TMSLOADINGDOCUMENTPRINTEDDATE",
+                        "LoadingDocumentPrintedDate",
+                        "loadingDocumentPrintedDate",
+                    ]),
+                    TMSLoadingDocumentPrintedBy: pick(p, [
+                        "TMSLoadingDocumentPrintedBy",
+                        "tmsLoadingDocumentPrintedBy",
+                        "TMSLOADINGDOCUMENTPRINTEDBY",
+                        "LoadingDocumentPrintedBy",
+                        "loadingDocumentPrintedBy",
+                    ]),
+                }));
+
+                allItems = allItems.concat(normalized);
             } catch (err) {
-                console.error("ODAK TIMEOUT", dayStart);
-                // ❗ timeout olsa bile devam
+                console.error("ODAK TIMEOUT", dayStart, err?.message);
             } finally {
                 clearTimeout(timer);
             }
