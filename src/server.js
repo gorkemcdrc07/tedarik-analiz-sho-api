@@ -138,6 +138,9 @@ app.post("/odak-api/api/tmsdespatchdocuments/getall", (req, res) => {
 app.post("/odak-api/api/tmsdespatchdocuments/documentgetbyid", (req, res) => {
     return odakProxy(req, res, "/api/tmsdespatchdocuments/documentgetbyid");
 });
+app.post("/api/tmsdespatchincomeexpenses/getall", (req, res) => {
+    return odakProxy(req, res, "/api/tmsdespatchincomeexpenses/getall");
+});
 
 const port = process.env.PORT || 3000;
 
