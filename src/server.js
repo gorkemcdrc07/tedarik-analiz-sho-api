@@ -29,6 +29,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/prints", printsRouter);
+console.log("INVOICE ROUTE ACTIVE");
 
 function tokenBul(data) {
     return (
@@ -139,9 +140,10 @@ app.post("/odak-api/api/tmsdespatchdocuments/documentgetbyid", (req, res) => {
     return odakProxy(req, res, "/api/tmsdespatchdocuments/documentgetbyid");
 });
 app.post("/api/tmsdespatchincomeexpenses/getall", (req, res) => {
+    console.log("INVOICE ROUTE HIT", req.body);
+
     return odakProxy(req, res, "/api/tmsdespatchincomeexpenses/getall");
 });
-
 const port = process.env.PORT || 3000;
 
 app.listen(port, () => {
