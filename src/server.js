@@ -89,17 +89,16 @@ async function odakProxy(req, res, endpoint) {
 }
 
 app.post("/odak-api/api/tmsdespatchdocuments/getall", (req, res) => {
-    return odakProxy(req, res, "/odak-api/api/tmsdespatchdocuments/getall");
+    return odakProxy(req, res, "/api/tmsdespatchdocuments/getall");
 });
 
 app.post("/odak-api/api/tmsdespatchdocuments/documentgetbyid", (req, res) => {
     return odakProxy(
         req,
         res,
-        "/odak-api/api/tmsdespatchdocuments/documentgetbyid"
+        "/api/tmsdespatchdocuments/documentgetbyid"
     );
 });
-
 const port = process.env.PORT || 3000;
 
 app.listen(port, () => {
