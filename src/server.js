@@ -29,7 +29,6 @@ app.get("/", (req, res) => {
 });
 
 app.use("/prints", printsRouter);
-console.log("INVOICE ROUTE ACTIVE");
 
 function tokenBul(data) {
     return (
@@ -61,7 +60,13 @@ async function getOdakToken() {
         return cachedOdakToken;
     }
 
-    const loginRes = await fetch(`${process.env.ODAK_BASE}/api/auth/login`, {
+    const loginBase = process.env.ODAK_BASE;
+
+    if (!loginBase) {
+        throw new Error("ODAK_BASE eksik.");
+    }
+
+    const loginRes = await fetch(`${loginBase}/api/auth/login`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -91,16 +96,18 @@ async function getOdakToken() {
     return cachedOdakToken;
 }
 
-async function odakProxy(req, res, endpoint, retry = true) {
-    try {
-        const odakBase = process.env.ODAK_BASE;
+async function odakProxy(req, res, endpoint, options = {}) {
+    const { retry = true, baseUrl = process.env.ODAK_BASE } = options;
 
-        if (!odakBase) {
-            return res.status(500).json({ message: "ODAK_BASE eksik." });
+    try {
+        if (!baseUrl) {
+            return res.status(500).json({ message: "Odak base URL eksik." });
         }
 
         const token = await getOdakToken();
-        const targetUrl = `${odakBase}${endpoint}`;
+        const targetUrl = `${baseUrl}${endpoint}`;
+
+        console.log("ODAK TARGET URL:", targetUrl);
 
         const apiRes = await fetch(targetUrl, {
             method: "POST",
@@ -115,35 +122,55 @@ async function odakProxy(req, res, endpoint, retry = true) {
         const contentType =
             apiRes.headers.get("content-type") || "application/json";
 
+        console.log("ODAK RESPONSE:", {
+            status: apiRes.status,
+            contentType,
+            bodyPreview: text.slice(0, 300),
+        });
+
         if (apiRes.status === 401 && retry) {
             cachedOdakToken = "";
             cachedOdakTokenTime = 0;
-            return odakProxy(req, res, endpoint, false);
+
+            return odakProxy(req, res, endpoint, {
+                ...options,
+                retry: false,
+            });
         }
 
-        res.status(apiRes.status).type(contentType).send(text);
+        return res.status(apiRes.status).type(contentType).send(text);
     } catch (error) {
         console.error("ODAK PROXY ERROR:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             message: "Odak API isteği başarısız.",
             error: error.message,
         });
     }
 }
 
+/* EVRAK API - tms.odaklojistik.com.tr */
 app.post("/odak-api/api/tmsdespatchdocuments/getall", (req, res) => {
-    return odakProxy(req, res, "/api/tmsdespatchdocuments/getall");
+    return odakProxy(req, res, "/api/tmsdespatchdocuments/getall", {
+        baseUrl: process.env.ODAK_BASE,
+    });
 });
 
 app.post("/odak-api/api/tmsdespatchdocuments/documentgetbyid", (req, res) => {
-    return odakProxy(req, res, "/api/tmsdespatchdocuments/documentgetbyid");
+    return odakProxy(req, res, "/api/tmsdespatchdocuments/documentgetbyid", {
+        baseUrl: process.env.ODAK_BASE,
+    });
 });
+
+/* FATURA API - api.odaklojistik.com.tr */
 app.post("/api/tmsdespatchincomeexpenses/getall", (req, res) => {
     console.log("INVOICE ROUTE HIT", req.body);
 
-    return odakProxy(req, res, "/api/tmsdespatchincomeexpenses/getall");
+    return odakProxy(req, res, "/api/tmsdespatchincomeexpenses/getall", {
+        baseUrl: process.env.ODAK_INVOICE_BASE || "https://api.odaklojistik.com.tr",
+    });
 });
+
 const port = process.env.PORT || 3000;
 
 app.listen(port, () => {
