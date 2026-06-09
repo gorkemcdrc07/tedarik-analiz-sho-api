@@ -16,12 +16,12 @@ app.use(
             "http://localhost:5173",
             "http://localhost:3000",
             "https://irsaliye-fatura.vercel.app",
+            "https://odaklojistik.vercel.app",
         ],
         methods: ["GET", "POST", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
-
 app.options("*", cors());
 
 app.get("/", (req, res) => {
