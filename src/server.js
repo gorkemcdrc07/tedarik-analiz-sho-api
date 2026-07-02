@@ -162,6 +162,40 @@ app.post("/odak-api/api/tmsdespatchdocuments/documentgetbyid", (req, res) => {
     });
 });
 
+app.get("/odak-api/api/tmsdespatch/vehicletrackinggetbytmsdespatchid", async (req, res) => {
+    try {
+        const { tmsDespatchId } = req.query;
+
+        if (!tmsDespatchId) {
+            return res.status(400).json({ message: "tmsDespatchId zorunlu." });
+        }
+
+        const token = await getOdakToken();
+
+        const targetUrl =
+            `${process.env.ODAK_BASE}/api/tmsdespatch/vehicletrackinggetbytmsdespatchid?tmsDespatchId=${encodeURIComponent(tmsDespatchId)}`;
+
+        const apiRes = await fetch(targetUrl, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        const text = await apiRes.text();
+        const contentType = apiRes.headers.get("content-type") || "application/json";
+
+        return res.status(apiRes.status).type(contentType).send(text);
+    } catch (error) {
+        console.error("ODAK VEHICLE TRACKING ERROR:", error);
+
+        return res.status(500).json({
+            message: "Araç takip verisi çekilemedi.",
+            error: error.message,
+        });
+    }
+});
 /* FATURA API - api.odaklojistik.com.tr */
 app.post("/api/tmsdespatchincomeexpenses/getall", (req, res) => {
     console.log("INVOICE ROUTE HIT", req.body);
