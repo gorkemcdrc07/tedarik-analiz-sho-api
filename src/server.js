@@ -175,8 +175,10 @@ app.get("/odak-api/api/tmsdespatch/vehicletrackinggetbytmsdespatchid", async (re
         const targetUrl =
             `${process.env.ODAK_BASE}/api/tmsdespatch/vehicletrackinggetbytmsdespatchid?tmsDespatchId=${encodeURIComponent(tmsDespatchId)}`;
 
+        console.log("ODAK VEHICLE TRACKING URL:", targetUrl);
+
         const apiRes = await fetch(targetUrl, {
-            method: "GET",
+            method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
@@ -185,6 +187,12 @@ app.get("/odak-api/api/tmsdespatch/vehicletrackinggetbytmsdespatchid", async (re
 
         const text = await apiRes.text();
         const contentType = apiRes.headers.get("content-type") || "application/json";
+
+        console.log("ODAK VEHICLE TRACKING RESPONSE:", {
+            status: apiRes.status,
+            contentType,
+            bodyPreview: text.slice(0, 300),
+        });
 
         return res.status(apiRes.status).type(contentType).send(text);
     } catch (error) {
@@ -195,8 +203,7 @@ app.get("/odak-api/api/tmsdespatch/vehicletrackinggetbytmsdespatchid", async (re
             error: error.message,
         });
     }
-});
-/* FATURA API - api.odaklojistik.com.tr */
+});/* FATURA API - api.odaklojistik.com.tr */
 app.post("/api/tmsdespatchincomeexpenses/getall", (req, res) => {
     console.log("INVOICE ROUTE HIT", req.body);
 
